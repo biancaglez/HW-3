@@ -1,6 +1,6 @@
 ---
 title: "MATH 216 Homework 3"
-author: "WRITE YOUR NAME HERE"
+author: "Bianca Gonzalez"
 output:
   html_document:
     toc: true
@@ -12,25 +12,28 @@ output:
 ```{r, echo=FALSE, message=FALSE}
 library(ggplot2)
 library(dplyr)
+library(tidyverse)
 library(readr)
 library(lubridate)
 library(Quandl)
+library(forcats)
+library(knitr)
 ```
-
-
 
 ## Admistrative:
 
 Please indicate
 
 * Who you collaborated with:
+Brenda, Shannia, Albert Kim. 
+
 * Roughly how much time you spent on this HW so far:
-* The URL of the RPubs published URL [here](https://www.nhl.com/).
+4 hours. 
+* The URL of the RPubs published URL [here](http://rpubs.com/biancaglez94/223626).
 * What gave you the most trouble:
+the training dataset and lubridate. This homework felt longer than usual. 
 * Any comments you have:
-
-
-
+Thanks!
 
 ## Question 1:
 
@@ -56,15 +59,54 @@ correctly predicted.
 # To keep this exercise simple, let's remove the only 3 users (0.005% of users)
 # who did not list a height, define the outcome variable, and add an ID variable
 # to distinguish the users
-profiles <- read_csv(file="profiles.csv") %>% 
+
+profiles <- read_csv(file="/Users/BiancaGonzalez/Desktop/RudeBoyBert/HW-02/profiles.csv") %>% 
   filter(!is.na(height)) %>% 
   mutate(is_female=ifelse(sex=='f', 1, 0)) %>% 
   tibble::rownames_to_column(var="id")
+
 ```
 
 
 
 #### a)
+
+```{r, echo=FALSE, message=FALSE, cache=TRUE}
+#This is the other categorical variable I considered. 
+
+profiles <- profiles %>% 
+  mutate(diet = ifelse(is.na(diet), "did not report", diet))
+
+profiles <- profiles %>% 
+  mutate(job = ifelse(is.na(job), "did not report", job))
+
+profiles <- profiles %>%
+  mutate(diet_code = fct_recode(diet,
+                            # New name = old name
+                            "omnivore" = "mostly anything",
+                            "omnivore" = "anything",
+                            "omnivore" = "strictly anything",
+                            "omnivore" = "mostly other",
+                            "omnivore" = "strictly other",
+                            "omnivore" = "other",
+                            "veggie" = "mostly vegetarian",
+                            "veggie" = "strictly vegetarian",
+                            "veggie" = "mostly vegan",
+                            "veggie" = "vegetarian",
+                            "veggie" = "strictly vegan",
+                            "veggie" = "vegan",
+                            "other" = "mostly kosher",
+                            "other" = "mostly halal",
+                            "other" = "strictly kosher",
+                            "other" = "strictly halal",
+                            "other" = "halal",
+                            "other" = "kosher",
+                            "did not report" = "did not report"
+  )) 
+
+
+```
+
 
 Define:
 
@@ -72,19 +114,33 @@ Define:
 logistic regression model to predict gender using this data. Since we want to 
 train the model to tell who is female and who is not, we use the outcome
 variable `is_female`.
+
 * A *test* set `test` of the remaining 56,946 users (95% of users). We will test
-how good our trained model is using this data. So at first, we will pretend we
+how good our trained model is using this data. 
+
+So at first, we will pretend we
 don't know the outcome variable `is_female`. We use the above model to make a
 prediction of sex for all 56,946 test users, then we use the `is_female` outcome
 to rate how well we performed.
 * Be sure to incorporate all the insight your garnered in your EDA in HW-2.
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
-set.seed(76)
+
+profiles <- profiles %>%
+  mutate(is_female = ifelse(sex=="f", 1, 0)) %>%
+  mutate(
+    last_online = stringr::str_sub(last_online, 1, 10),
+    last_online = lubridate::ymd(last_online)
+  )
+
+#a training set of 5% of users:
+train5 <- profiles %>% 
+  sample_frac(0.05)
+
+#testing set with 95% of users
+test95 <- anti_join(profiles, train5, by="id")
 
 ```
-
-
 
 #### b)
 
@@ -92,10 +148,13 @@ Train the logistic regression model to predict sex. i.e. fit a logistic
 regression model to the `training` data. Assign this model to an R object called
 `predict_sex_model`, then rate how well the model performs on the `training` data.
 
-```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+```{r, echo=FALSE, message=FALSE, cache=TRUE}
+
+predict_sex_model <- glm(is_female ~ income + job + diet_code, data=train5, family="binomial")
+
+#broom::tidy(predict_sex_model)
 
 ```
-
 
 
 #### c)
@@ -106,21 +165,57 @@ for each users' sex, then rate how well the model performs on the `test` data.
 **Hint**: What do you think `predict(predict_sex_model, newdata=test,
 type="response")` does? The help file is located in `?predict.glm`
 
-```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
 
+The first output is the output for the training data that the model was built on. This is 63% accurate. My test data I ran the model on was 61% correct. 
+```{r, echo=FALSE, message=FALSE, cache=TRUE}
+
+#this will give us our phats which we can then create a threshold for. 
+#type = response gives us probabilities. 
+
+#phat not in predictsexmodel generation
+
+#we are testing the model we built with the training data by finding 
+#pHats (probability that is female)! 
+test95 <- test95 %>% 
+  mutate(p_hat = predict(predict_sex_model, newdata=test95, type="response"))
+
+test95 <- test95 %>% 
+  select(income, job, diet_code, p_hat, is_female)
+
+#already used train data to build the model so this is just getting our error from our training data. 
+train5 <- train5 %>% 
+  mutate(p_hat = predict(predict_sex_model, newdata=train5, type="response"))
+
+
+train5 <- train5 %>% 
+  mutate(threshold_prediction = ifelse(p_hat >.6, 1, 0)) %>% 
+  mutate(correct_prediction = ifelse(is_female==threshold_prediction, 1, 0)) 
+
+mean(train5$correct_prediction)
+
+#threshold to evaluate if correct. phat. use mutate to create new phat column
+#where you put the generated responses from predictions. 
+
+
+#ifelse to see if the phat is in threshold, if it is within threshold, then mark as female. then can compare both rows and see if they are correct. 
+
+test95 <- test95 %>% 
+  mutate(threshold_prediction = ifelse(p_hat >.6, 1, 0)) %>% 
+  mutate(correct_prediction = ifelse(is_female==threshold_prediction, 1, 0)) 
+
+mean(test95$correct_prediction)
+
+#now have to compare rate of accuracy by grouby true/false and then divide by total to see
+#percent accurate. 
+                           
 ```
-
-
 
 #### d)
 
 Did the model perform better on the `training` data or the `test` data? Why
 do you think that is?
 
-
-
-
-
+My training model was 2% more accurate than my test data analysis. I think this is the case because the model was built on the training data set. 
 
 
 ## Question 2:
@@ -136,10 +231,81 @@ insight to a foreign currency exchanger.
 
 ```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
 
+#find difference between days. Absolute change
+#lead is command for lag.... 
+#finding absolute change over days. 
+
+bitcoin <- Quandl("BAVERAGE/USD") %>%
+  tbl_df() %>%
+  rename(
+    Avg = `24h Average`,
+    Total_Volume = `Total Volume`
+  )
+
+gold <- Quandl("BUNDESBANK/BBK01_WT5511") %>%
+  tbl_df()
+
+#to find our measures of volatility. 
+#glimpse(gold) # value 
+#glimpse(bitcoin) #avg
+
+bits_gold <- inner_join(bitcoin, gold, by= "Date")
+#tidy data to plot it 
+
+gold_bits <- gather(bits_gold, "Date") 
+
+#changing our second columns name because it is a duplicate. 
+colnames(gold_bits)[2] <- "Type" 
+
+gold_bits <- gold_bits %>%
+  filter(Type == "Value" | Type == "Avg")
+
+#let's look at the currency value of both over time before finding volatility. 
+ggplot(data=gold_bits, aes(x=Date, y= value, col=Type)) +
+  geom_line() 
+
+#can push values one down and then subtract from day2-day1/day1
+goldx <- gold %>% 
+  mutate(
+    previous_day_val = lead(Value, 1)
+  ) %>% 
+  mutate( 
+    volatility_gold= ((previous_day_val-Value)/Value)
+    )
+
+bitcoinx <- bitcoin %>% 
+  mutate(
+    lead = lead(Avg, 1)
+  ) %>% 
+  mutate(
+    volatility_bitcoin= ((lead-Avg)/Avg)
+  )
+
+vol_bitgold <- inner_join(bitcoinx, goldx, by="Date")
+
+vol_bitgold <- gather(vol_bitgold, "Date") 
+colnames(vol_bitgold)[2] <- "Type" 
+
+
+vol_bitgold <- vol_bitgold %>%
+  filter(Type == "volatility_gold" | Type == "volatility_bitcoin")
+
+#let's plot this to see the volatility
+ggplot(data=vol_bitgold, aes(x=Date, y= value, col=Type)) +
+  geom_line() 
+
+
+#relative change from day to day in price of bitcoin and gold. 
+#so need to be able to create dataset where dates match, then subtract gold from bitcoin 
+#and find the absolute value to show the change in these two.
+
+  #labs(Title = "Absolute change in price of Gold and bitcoin from 2011 to 2016")
+
+
+#look into app thing that makes it interactive. 
+
+
 ```
-
-
-
 
 
 ## Question 3:
@@ -176,7 +342,37 @@ the "graveyard shift" during the academic year? Define
 * the "graveyard shift" as midnight to 8am
 * the academic year as September through May (inclusive)
 
-```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+```{r, results = 'asis', echo=FALSE}
+#jukebox
+#jukebox$date_time %>% 
+ # class()
+#of type character so let's convert this baby to a date format. 
+
+#first let's edit the times before continuing . 
+jukebox <- jukebox %>% 
+  mutate(
+    date_time = parse_date_time(date_time, "a b d HMS Y")
+  )
+#?as.factor()   this converts to a categorical variable 
+
+juke <- jukebox %>% 
+  filter(month(date_time) %in% c(9,5,10,11,12,1,2,3,4) == TRUE) %>% 
+  filter(hour(date_time) %in% c(00, 01, 02,03,04,05,06,07,08) == TRUE)
+    
+ 
+juke_ten <- juke %>% 
+  group_by(artist) %>% 
+  tally() %>% 
+  arrange(desc(n)) %>% 
+  slice(1:10) %>% 
+kable()
+
+juke_ten
+  
+#then find top ten artists (max) (asc) kable, splice! show ten! 
+
+  
+
 
 ```
 

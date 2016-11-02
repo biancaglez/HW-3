@@ -27,14 +27,15 @@ Please indicate
 Brenda, Shannia, Albert Kim. 
 
 * Roughly how much time you spent on this HW so far:
-4 hours. 
+5 hours
 * The URL of the RPubs published URL [here](http://rpubs.com/biancaglez94/223626).
 * What gave you the most trouble:
-the training dataset and lubridate. This homework felt longer than usual. 
+the training dataset and lubridate. 
 * Any comments you have:
 Thanks!
 
 ## Question 1:
+
 
 We will use a logistic regression model to predict sex. Our metric to rate how well our
 model performs will be:
@@ -63,7 +64,7 @@ profiles <- read_csv(file="/Users/BiancaGonzalez/Desktop/RudeBoyBert/HW-02/profi
   filter(!is.na(height)) %>% 
   mutate(is_female=ifelse(sex=='f', 1, 0)) %>% 
   tibble::rownames_to_column(var="id")
-
+set.seed(76)
 ```
 
 
@@ -204,8 +205,10 @@ test95 <- test95 %>%
 
 mean(test95$correct_prediction)
 
+
 #now have to compare rate of accuracy by grouby true/false and then divide by total to see
 #percent accurate. 
+#count(is_female==is_female_predic) %>%  mutate(prop=m/sum(n))
                            
 ```
 
@@ -228,80 +231,51 @@ Let our measure of volatility be the relative change from day-to-day in price.
 Let the reference currency be US dollars. Analyze these results and provide
 insight to a foreign currency exchanger.
 
-```{r, echo=TRUE, message=TRUE, warning=TRUE, fig.width=8, fig.height=4.5}
+```{r, results = 'asis', echo=FALSE}
 
 #find difference between days. Absolute change
 #lead is command for lag.... 
 #finding absolute change over days. 
+#bindrows. puts underneath
+#same column structure. select date, value for both, and create a column called type.(mutate)
+#groupby_type..... 
+# 1. Get gold & bitcoin data
+# 2. Make column structure the same
+# 3. Add variable type
 
-bitcoin <- Quandl("BAVERAGE/USD") %>%
-  tbl_df() %>%
-  rename(
-    Avg = `24h Average`,
-    Total_Volume = `Total Volume`
-  )
+#have to explore the data prior so you can find the variables you can select or rename
+gold <- Quandl("BUNDESBANK/BBK01_WT5511") %>% 
+  select(Date, Value) %>%             #Here you make the data the same so you can bind the rows                                             together. 
+  mutate(type="Gold")
 
-gold <- Quandl("BUNDESBANK/BBK01_WT5511") %>%
-  tbl_df()
+bitcoin <- Quandl("BAVERAGE/USD") %>% 
+  rename(Value = `24h Average`) %>%       #rename the variable to be the same as the other 
+  select(Date, Value) %>% 
+  mutate(type="Bitcoin")
 
-#to find our measures of volatility. 
-#glimpse(gold) # value 
-#glimpse(bitcoin) #avg
-
-bits_gold <- inner_join(bitcoin, gold, by= "Date")
-#tidy data to plot it 
-
-gold_bits <- gather(bits_gold, "Date") 
-
-#changing our second columns name because it is a duplicate. 
-colnames(gold_bits)[2] <- "Type" 
-
-gold_bits <- gold_bits %>%
-  filter(Type == "Value" | Type == "Avg")
-
-#let's look at the currency value of both over time before finding volatility. 
-ggplot(data=gold_bits, aes(x=Date, y= value, col=Type)) +
-  geom_line() 
-
-#can push values one down and then subtract from day2-day1/day1
-goldx <- gold %>% 
+# Combine them into single data frame using bind_rows()
+combo_data <- bind_rows(gold, bitcoin) %>% 
+  # Group by here!
+  group_by(type) %>% 
+  # Then do the following ONLY ONCE:
+  filter(year(Date) >= 2011) %>%        #find year where gold begins prior to combining data
+  arrange(Date) %>%                     #arrange them by date and check out order b4 using function.
   mutate(
-    previous_day_val = lead(Value, 1)
-  ) %>% 
-  mutate( 
-    volatility_gold= ((previous_day_val-Value)/Value)
+    Value_yest = lag(Value),            #create a lagged variable so you can subtract diff./divde
+    rel_diff = 100 * (Value-Value_yest)/Value_yest    #calculate percentage using this new var
     )
 
-bitcoinx <- bitcoin %>% 
-  mutate(
-    lead = lead(Avg, 1)
-  ) %>% 
-  mutate(
-    volatility_bitcoin= ((lead-Avg)/Avg)
-  )
-
-vol_bitgold <- inner_join(bitcoinx, goldx, by="Date")
-
-vol_bitgold <- gather(vol_bitgold, "Date") 
-colnames(vol_bitgold)[2] <- "Type" 
-
-
-vol_bitgold <- vol_bitgold %>%
-  filter(Type == "volatility_gold" | Type == "volatility_bitcoin")
-
-#let's plot this to see the volatility
-ggplot(data=vol_bitgold, aes(x=Date, y= value, col=Type)) +
-  geom_line() 
-
+# Plot
+ggplot(combo_data, aes(x=Date, y=rel_diff, col=type)) +
+  geom_line() +
+  labs(title = "Bitcoin and Gold Volatitily", y="% Change")
 
 #relative change from day to day in price of bitcoin and gold. 
 #so need to be able to create dataset where dates match, then subtract gold from bitcoin 
 #and find the absolute value to show the change in these two.
 
-  #labs(Title = "Absolute change in price of Gold and bitcoin from 2011 to 2016")
+#labs(Title = "Absolute change in price of Gold and bitcoin from 2011 to 2016")
 
-
-#look into app thing that makes it interactive. 
 
 
 ```
@@ -346,11 +320,14 @@ the "graveyard shift" during the academic year? Define
 #jukebox$date_time %>% 
  # class()
 #of type character so let's convert this baby to a date format. 
-
+#had to add timezone. UTC!
 #first let's edit the times before continuing . 
+
+#ALSO EDITED TIME ZONE!
 jukebox <- jukebox %>% 
   mutate(
-    date_time = parse_date_time(date_time, "a b d HMS Y")
+    date_time = parse_date_time(date_time, "a b d HMS Y"),
+    date_time = with_tz(date_time, tz = "America/Los_Angeles")
   )
 #?as.factor()   this converts to a categorical variable 
 
@@ -367,7 +344,7 @@ juke_ten <- juke %>%
 kable()
 
 juke_ten
-  
+
 #then find top ten artists (max) (asc) kable, splice! show ten! 
 
   

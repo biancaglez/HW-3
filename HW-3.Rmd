@@ -21,8 +21,8 @@ library(knitr)
 ```
 
 ## Admistrative:
-
 Please indicate
+
 * Who you collaborated with:
 Brenda, Shannia, Albert Kim. 
 

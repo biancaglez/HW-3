@@ -36,7 +36,6 @@ Thanks!
 
 ## Question 1:
 
-
 We will use a logistic regression model to predict sex. Our metric to rate how well our
 model performs will be:
 

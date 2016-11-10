@@ -36,7 +36,6 @@ Thanks!
 
 ## Question 1:
 
-
 We will use a logistic regression model to predict sex. Our metric to rate how well our
 model performs will be:
 
@@ -59,8 +58,9 @@ correctly predicted.
 # To keep this exercise simple, let's remove the only 3 users (0.005% of users)
 # who did not list a height, define the outcome variable, and add an ID variable
 # to distinguish the users
+#change to relative path!
 
-profiles <- read_csv(file="/Users/BiancaGonzalez/Desktop/RudeBoyBert/HW-02/profiles.csv") %>% 
+profiles <- read_csv(file="profiles.csv") %>% 
   filter(!is.na(height)) %>% 
   mutate(is_female=ifelse(sex=='f', 1, 0)) %>% 
   tibble::rownames_to_column(var="id")
@@ -73,7 +73,6 @@ set.seed(76)
 
 ```{r, echo=FALSE, message=FALSE, cache=TRUE}
 #This is the other categorical variable I considered. 
-
 profiles <- profiles %>% 
   mutate(diet = ifelse(is.na(diet), "did not report", diet))
 
